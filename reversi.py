@@ -16,14 +16,17 @@ class ReversiServerConnection:
 
         turn = int(server_msg[0])
 
+        # If the game is over
         if turn == -999:
             return ReversiGameState(None, turn)
 
+        # Flip is necessary because of the way the server does indexing
         board = np.flip(np.array([int(x) for x in server_msg[4:68]]).reshape(8, 8), 0)
 
         return ReversiGameState(board, turn)
 
     def send_move(self, move):
+        # The 7 - bit is necessary because of the way the server does indexing
         move_str = str(7 - move[0]) + '\n' + str(move[1]) + '\n'
         self.sock.send(move_str.encode('utf-8'))
 
@@ -49,11 +52,12 @@ class ReversiGame:
 
 class ReversiGameState:
     def __init__(self, board, turn):
+        self.board_dim = 8 # Reversi is played on an 8x8 board
         self.board = board
         self.turn = turn # Whose turn is it
 
     def capture_will_occur(self, row, col, xdir, ydir, could_capture=0):
-        # If we're leaving the board that's not OK
+        # We shouldn't be able to leave the board
         if not self.space_is_on_board(row, col):
             return False
 
@@ -72,7 +76,7 @@ class ReversiGameState:
                                        could_capture + 1)
 
     def space_is_on_board(self, row, col):
-        return 0 <= row < 8 and 0 <= col < 8
+        return 0 <= row < self.board_dim and 0 <= col < self.board_dim
 
     def space_is_unoccupied(self, row, col):
         return self.board[row, col] == 0
@@ -97,14 +101,13 @@ class ReversiGameState:
         # If the middle four squares aren't taken the remaining ones are all
         # that is available
         if 0 in self.board[3:5, 3:5]:
-            # I'd rather not have this nested loop
             for row in range(3, 5):
                 for col in range(3, 5):
                     if self.board[row, col] == 0:
                         valid_moves.append((row, col))
         else:
-            for row in range(8):
-                for col in range(8):
+            for row in range(self.board_dim):
+                for col in range(self.board_dim):
                     if self.is_valid_move(row, col):
                         valid_moves.append((row, col))
 
