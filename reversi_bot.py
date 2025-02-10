@@ -55,11 +55,11 @@ class ReversiBot:
             alpha = max(alpha, best_value)
 
         rand_choice = rand.choice(valid_moves) # moves randomly
+        # print(f"DEBUG: Player {self.move_num} placed at {best_move}")
+
         if best_move is not None:
-            #print("DEBUG: Using best move")
             return best_move
         else:
-            #print("DEBUG: Using random choice")
             return rand_choice
     
     def minmax(self, state, depth, is_max_player, alpha, beta):
@@ -67,6 +67,7 @@ class ReversiBot:
 
         if depth == 0 or not valid_moves:
             return self.evaluate(state)
+            #return self.evaluate_lookup_table(state)
 
         if is_max_player:
             max_eval = float('-inf')
@@ -108,7 +109,7 @@ class ReversiBot:
                             break
                         new_board[row, col] = player
 
-        return reversi.ReversiGameState(new_board, 3 - player)  # switch turns
+        return reversi.ReversiGameState(new_board, 3 - player)  # switch turns    
 
     def evaluate(self, state):
         if state.board is None:
@@ -134,14 +135,87 @@ class ReversiBot:
             elif board[x, y] == self.opponent:
                 score -= 10
 
-        # Count mobility (number of moves available)
+        # number of moves available
         my_moves = len(state.get_valid_moves())
         opponent_moves = len(self.simulate_move(state, (0, 0), self.opponent).get_valid_moves())
         score += (my_moves - opponent_moves) * 5
 
-        # Count number of pieces
+        # count number of pieces
         my_pieces = np.count_nonzero(board == self.move_num)
         opponent_pieces = np.count_nonzero(board == self.opponent)
         score += (my_pieces - opponent_pieces)
 
         return score
+
+
+    #############################
+    ### POSSIBLE IMPROVEMENTS ###
+    #############################
+
+### exported to class for testing purposes
+class MonteCarloReversiBot:
+    def __init__(self, move_num):
+        self.move_num = move_num # aka player
+        self.opponent = 3 - move_num
+        self.max_depth = 3
+
+    # monte carlo moves instead of AB pruning
+    # plays random games to find the move that wins the most
+    def make_move(self, state, simulations=50):
+        valid_moves = state.get_valid_moves()
+        if not valid_moves:
+            return None
+        
+        # avoid errors by handling first four moves here
+        center_moves = [(3, 3), (3, 4), (4, 3), (4, 4)]
+        if any(state.board[row, col] == 0 for row, col in center_moves):
+            for move in center_moves:
+                if move in valid_moves:
+                    return move 
+
+        move_scores = {move: 0 for move in valid_moves}
+
+        for move in valid_moves:
+            for _ in range(simulations):
+                new_state = self.simulate_move(state, move, self.move_num)
+                winner = self.simulate_random_game(new_state)
+                if winner == self.move_num:
+                    move_scores[move] += 1
+
+        best_move = max(move_scores, key=move_scores.get)
+        #print(f"DEBUG: MonteCarlo Bot (Player {self.move_num}) placed at {best_move}")
+
+        return best_move
+    
+    def simulate_move(self, state, move, player):
+        new_board = np.copy(state.board)
+        new_board[move] = player  
+        
+        # flip opponent pieces in all directions
+        for xdir in range(-1, 2):
+            for ydir in range(-1, 2):
+                if xdir == ydir == 0:
+                    continue
+                if state.capture_will_occur(move[0] + ydir, move[1] + xdir, xdir, ydir):
+                    row, col = move
+                    while True:
+                        row += ydir
+                        col += xdir
+                        if state.board[row, col] == player:
+                            break
+                        new_board[row, col] = player
+
+        return reversi.ReversiGameState(new_board, 3 - player)  # switch turns
+
+    def simulate_random_game(self, state):
+        while True:
+            valid_moves = state.get_valid_moves()
+            if not valid_moves:
+                return self.determine_winner(state)
+            state = self.simulate_move(state, rand.choice(valid_moves), state.turn)
+
+    def determine_winner(self, state):
+        count_me = np.count_nonzero(state.board == self.move_num)
+        count_opponent = np.count_nonzero(state.board == self.opponent)
+        return self.move_num if count_me > count_opponent else self.opponent
+

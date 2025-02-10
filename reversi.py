@@ -48,6 +48,7 @@ class ReversiGame:
             # If it is the bot's turn
             if state.turn == self.bot_move_num:
                 move = self.bot.make_move(state)
+                #move = self.bot.monte_carlo_move(state)
                 self.server_conn.send_move(move)
 
 class ReversiGameState:
@@ -112,3 +113,25 @@ class ReversiGameState:
                         valid_moves.append((row, col))
 
         return valid_moves
+    
+    def determine_winner(self):
+        """
+        Determines the winner based on the number of pieces on the board.
+        Returns 1 if player 1 wins, 2 if player 2 wins, or 0 for a tie.
+        """
+        player1_count = np.count_nonzero(self.board == 1)
+        player2_count = np.count_nonzero(self.board == 2)
+
+        if player1_count > player2_count:
+            return 1  # Player 1 wins
+        elif player2_count > player1_count:
+            return 2  # Player 2 wins
+        else:
+            return 0  # Tie
+
+    def get_final_score(self, player):
+        """
+        Returns the final score for a given player (total number of pieces).
+        """
+        return np.count_nonzero(self.board == player)
+
